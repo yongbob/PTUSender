@@ -47,7 +47,8 @@ def _send(*args,**kwargs):
     try:
         sock.sendto(data.encode("utf-8"), (ip, port))
     except socket.error as e:
-        common.g_printthread.submit(common.print_log, "socket error:" + e)
+        if common.g_thread_running:
+            common.g_printthread.submit(common.print_log, "socket error:" + e)
 '''
 def _send_timer(*args,**kwargs):
     data = args[0]
@@ -72,16 +73,20 @@ def send_by_timer(*args,**kwargs):
 
     for i in range(method_para):
         #print(str(i)+data[(i+t) % data_len])
+        if common.g_ex._work_queue.qsize() < common.g_total_tasks:
+            try:
+                if common.g_thread_running:
+                    all_tasks = [common.g_ex.submit(_send, data[(i+t) % data_len], ip,port,common.g_sysloghandler)]
+            except Exception as e:
+                if common.g_thread_running:
+                    common.g_printthread.submit(common.print_log, e)
+                    print(e)
+    if  common.g_ex._work_queue.qsize() < common.g_total_tasks:
         try:
-            all_tasks = [common.g_ex.submit(_send, data[(i+t) % data_len], ip,port,common.g_sysloghandler)]
+            common.g_threadpool_result.submit(common.wait_for_done, all_tasks, "结束发送" + str(method_para) + "条 Syslog 日志")
         except Exception as e:
             common.g_printthread.submit(common.print_log, e)
             print(e)
-    try:
-        common.g_threadpool_result.submit(common.wait_for_done, all_tasks, "结束发送" + str(method_para) + "条 Syslog 日志")
-    except Exception as e:
-        common.g_printthread.submit(common.print_log, e)
-        print(e)
 
 
 def sendsyslog(udpconfig):
@@ -123,15 +128,19 @@ def sendsyslog(udpconfig):
                 common.g_socket_lock.release()
         for i in range(0,method_para):
             try:
-                all_tasks=[common.g_ex.submit(_send,syslogdata[i % data_len],ip,port,common.g_socket_pool[key][0])]
+                if common.g_thread_running:
+                    all_tasks=[common.g_ex.submit(_send,syslogdata[i % data_len],ip,port,common.g_socket_pool[key][0])]
             except Exception as e:
-                common.g_printthread.submit(common.print_log, e)
+                if common.g_thread_running:
+                    common.g_printthread.submit(common.print_log, e)
                 print(e)
             #all_tasks = [common.g_ex.submit(_send, str(i), syslogger)]
         try:
-            common.g_threadpool_result.submit(common.wait_for_done,all_tasks,"结束发送"+str(method_para)+"条 Syslog 日志")
+            if common.g_thread_running:
+                common.g_threadpool_result.submit(common.wait_for_done,all_tasks,"结束发送"+str(method_para)+"条 Syslog 日志")
         except Exception as e:
-            common.g_printthread.submit(common.print_log, e)
+            if common.g_thread_running:
+                common.g_printthread.submit(common.print_log, e)
             print(e)
     else:
         common.g_syslog_timer.pause()
@@ -146,7 +155,8 @@ def sendsyslog(udpconfig):
 
     #pring send log information
     t = send_para(ip,str(port),method,str(method_para))
-    common.g_printthread.submit(common.print_log,"开始发送"+t)
+    if common.g_thread_running:
+        common.g_printthread.submit(common.print_log,"开始发送"+t)
 
             #_send(syslogdata,syslogger)
     #syslogger.warning(syslogdata)
