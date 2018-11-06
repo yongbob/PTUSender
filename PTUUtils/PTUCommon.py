@@ -88,16 +88,19 @@ def init_para():
 
     global g_syslog_timer
     g_syslog_timer = lptimer.LoopTimer(1,timer_function_null,())
+    g_syslog_timer.setDaemon(True)
     g_syslog_timer.start()
     g_syslog_timer.pause()
 
     global g_snmp_timer
     g_snmp_timer = lptimer.LoopTimer(1, timer_function_null, ())
+    g_snmp_timer.setDaemon(True)
     g_snmp_timer.start()
     g_snmp_timer.pause()
 
     global g_clean_log_timer
     g_clean_log_timer = lptimer.LoopTimer(120,clean_log , ())
+    g_clean_log_timer.setDaemon(True)
     g_clean_log_timer.start()
     g_clean_log_timer.resume()
 
