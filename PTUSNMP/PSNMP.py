@@ -9,6 +9,7 @@ import datetime
 import tkinter.messagebox
 import PTUUtils.PTUCommon as common
 import time
+import threading
 '''
 def sendsnmp(udpconfig):
     snmptype = PSNMPConfig.getsnmptype()
@@ -31,7 +32,7 @@ class PTUSNMPV2(object):
         if self.data:
             self.udpconfig = udpconfig
         else:
-            tkinter.messagebox.showerror("´íÎó", "·¢ËÍÊı¾İ²»ÄÜÎª¿Õ")
+            tkinter.messagebox.showerror("é”™è¯¯", "å‘é€æ•°æ®ä¸èƒ½ä¸ºç©º")
             self.send_flag=False
 
     def timeticks(self):
@@ -147,7 +148,7 @@ def _send(*args,**kwargs):
         common.g_printthread.submit(common.print_log, "socket error:" + e)
 
 def send_para(*args):
-    return ": Server= "+args[0]+" Port="+args[1]+" ·¢ËÍ·½·¨="+args[2]+" ·¢ËÍ²ÎÊı="+args[3]
+    return ": Server= "+args[0]+" Port="+args[1]+" å‘é€æ–¹æ³•="+args[2]+" å‘é€å‚æ•°="+args[3]
 
 def send_by_timer(*args,**kwargs):
     method_para = args[0]
@@ -160,22 +161,25 @@ def send_by_timer(*args,**kwargs):
 
     for i in range(method_para):
         #print(str(i)+data[(i+t) % data_len])
+        if common.g_ex._work_queue.qsize() < common.g_total_tasks:
+            try:
+                if common.g_thread_running:
+
+                    all_tasks = [common.g_ex.submit(_send, data[(i+t) % data_len], ip,port,common.g_snmp_transportDispatcher)]
+            except Exception as e:
+                common.g_printthread.submit(common.print_log, e)
+                print(e)
+    if common.g_ex._work_queue.qsize() < common.g_total_tasks:
         try:
-            all_tasks = [common.g_ex.submit(_send, data[(i+t) % data_len], ip,port,common.g_snmp_transportDispatcher)]
+            common.g_threadpool_result.submit(common.wait_for_done, all_tasks, "ç»“æŸå‘é€" + str(method_para) + "æ¡ SNMP è®°å½•")
         except Exception as e:
             common.g_printthread.submit(common.print_log, e)
             print(e)
-    try:
-        common.g_threadpool_result.submit(common.wait_for_done, all_tasks, "½áÊø·¢ËÍ" + str(method_para) + "Ìõ SNMP ¼ÇÂ¼")
-    except Exception as e:
-        common.g_printthread.submit(common.print_log, e)
-        print(e)
 
 
 def sendsnmp(udpconfig):
     # get SNMP message
     t_list = udpconfig.get_data()
-    print(t_list)
     snmpdata = []
     for i in t_list:
        snmpdata.append(snmp2(i))
@@ -189,19 +193,19 @@ def sendsnmp(udpconfig):
     data_len = len(snmpdata)
 
     if not snmpdata:
-        tkinter.messagebox.showerror("´íÎó", "·¢ËÍÊı¾İ²»ÄÜÎª¿Õ")
+        tkinter.messagebox.showerror("é”™è¯¯", "å‘é€æ•°æ®ä¸èƒ½ä¸ºç©º")
         return False
 
-    #if send_type == °´´Î·¢ËÍ
+    #if send_type == æŒ‰æ¬¡å‘é€
     #check for socket in common.g_snmp_pool
     #ip+port  is the key.
     #[socket,start_time] is the value
-    #if the key is existed, for °´´Î·¢ËÍ will do nothing
+    #if the key is existed, for æŒ‰æ¬¡å‘é€ will do nothing
     #else create new socket.
 
     #else will replace the socket in dict.
     key = ip+":"+ str(port)
-    if method == '°´´Î·¢ËÍ':
+    if method == 'æŒ‰æ¬¡å‘é€':
         if key in common.g_snmp_pool:
             pass
         else:
@@ -217,15 +221,19 @@ def sendsnmp(udpconfig):
                 common.g_socket_lock.release()
         for i in range(0,method_para):
             try:
-                all_tasks=[common.g_ex.submit(_send,snmpdata[i % data_len],ip,port,common.g_snmp_pool[key][0])]
+                if common.g_thread_running:
+                    all_tasks=[common.g_ex.submit(_send,snmpdata[i % data_len],ip,port,common.g_snmp_pool[key][0])]
             except Exception as e:
-                common.g_printthread.submit(common.print_log, e)
+                if common.g_thread_running:
+                    common.g_printthread.submit(common.print_log, e)
                 print(e)
 
         try:
-            common.g_threadpool_result.submit(common.wait_for_done,all_tasks,"½áÊø·¢ËÍ"+str(method_para)+"Ìõ SNMP¼ÇÂ¼")
+            if common.g_thread_running:
+                common.g_threadpool_result.submit(common.wait_for_done,all_tasks,"ç»“æŸå‘é€"+str(method_para)+"æ¡ SNMPè®°å½•")
         except Exception as e:
-            common.g_printthread.submit(common.print_log, e)
+            if common.g_thread_running:
+                common.g_printthread.submit(common.print_log, e)
             print(e)
     else:
         common.g_snmp_timer.pause()
@@ -242,4 +250,5 @@ def sendsnmp(udpconfig):
 
     #pring send log information
     t = send_para(ip,str(port),method,str(method_para))
-    common.g_printthread.submit(common.print_log,"¿ªÊ¼·¢ËÍ"+t+"SNMP ¼ÇÂ¼")
+    if common.g_thread_running:
+        common.g_printthread.submit(common.print_log,"å¼€å§‹å‘é€"+t+"SNMP è®°å½•")
