@@ -126,10 +126,10 @@ def close():
     g_clean_log_timer.stop()
 
     #if not g_printthread:
-    g_printthread.shutdown(wait=True)
-    g_threadpool_result.shutdown(wait=True)
+    #g_printthread.shutdown(wait=True)
+    #g_threadpool_result.shutdown(wait=True)
     #if not g_ex:
-    g_ex.shutdown(wait=True)
+    #g_ex.shutdown(wait=True)
 
     #close syslog handlers
     for k,v in g_socket_pool.items():
